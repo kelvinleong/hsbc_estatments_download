@@ -4,18 +4,17 @@ from selenium.webdriver.support.ui import WebDriverWait # available since 2.4.0
 import requests
 import shutil
 
-# Fill your second password
-# sec_pwd =
+sec_pwd = "some_second_password"
 
 # Create a new instance of the Firefox driver
-driver = webdriver.Chrome("your_path/chromedriver")
+driver = webdriver.Chrome("/Users/kelvinleung/PycharmProjects/chromedriver")
 
 # go to the google home page
 driver.get("https://www2.ebanking.hsbc.com.hk/1/2/logon?LANGTAG=en&COUNTRYTAG=US")
 
 # find username input
 usr_name_input = driver.find_element_by_name("u_UserID")
-usr_name_input.send_keys("your_usr_name")
+usr_name_input.send_keys("some_UserID")
 
 # submit the form (although google automatically searches now without submitting)
 submit = driver.find_element_by_xpath("//a[@href='javascript:PC_7_0G3UNU10SD0MHTI7TQA0000000000000_validate()']")
@@ -23,43 +22,79 @@ submit.click()
 
 # now we are on the password input page
 firstPassword = driver.find_element_by_name("memorableAnswer")
-firstPassword.send_keys("your_pass_word")
+firstPassword.send_keys("some_pass_word")
 
-# fill secondary password
+# find all secondary password input
 all_secondPassword = []
-all_secondPassword = driver.find_elements_by_xpath("//td[@width='28']")
+all_secondPassword = driver.find_elements_by_xpath("//input[@type='password']")
 
 valid_sec_pwd = []
 i = 0
-for secondPwd in all_secondPassword:
-    sec_pwd_input = secondPwd.find_elements_by_xpath(".//label[@for='code']")
-    if(len(sec_pwd_input) > 0):
-        index_str = sec_pwd_input[0].text
-        #print("index_str: " + index_str)
-        if(len(index_str) < 10):
-            if 'last' in index_str or 'Last' in index_str:
-                if (index_str == 'Last'):
-                    index = len(sec_pwd) - 1
-                else:
-                    index = len(sec_pwd) - int(index_str[0])
-            else:
-                index = int(index_str[0])
-            valid_sec_pwd.append(sec_pwd[index])
-            #print(valid_sec_pwd[i])
-            i += 1
-
 # fill the second password
-j = 0
-while (j < 3) :
-    sec_pwd_name = 'RCC_PWD' + str(j + 1)
-    field = driver.find_element_by_name(sec_pwd_name)
-    field.send_keys(valid_sec_pwd[j])
-    j += 1
+for secondPwd in all_secondPassword:
+    isDisable = secondPwd.get_attribute('disabled')
+    isMemAnw = secondPwd.get_attribute('aria-required')
+    if(isDisable == None and isMemAnw == None):
+        index_str = secondPwd.get_attribute('id')
+        index = int(index_str[len(index_str) - 1])
+        if(index < 7):
+            secondPwd.send_keys(sec_pwd[index])
+        elif(index == 7):
+            secondPwd.send_keys(sec_pwd[len(sec_pwd) - 2])
+        elif(index == 8):
+            secondPwd.send_keys(sec_pwd[len(sec_pwd) - 1])
 
 # press logon
-logon = driver.find_element_by_xpath("//input[@src='/P2GTheme/themes/html/BDE_HBAP_LOGON/images/buttons/btn_logon_png.gif']")
+logon = driver.find_element_by_xpath("//input[@class='submit_input']")
 logon.click()
 
-driver.get("https://www2.ebanking.hsbc.com.hk/1/3/cards?__cmd-All_MenuRefresh=")
-link = driver.find_element_by_xpath("//a[@href='https://www2.ebanking.hsbc.com.hk/1/3/my-hsbc/estatement?cmd-ECorrespDummyPortlet_in=&designateType=Card']")
+# route to Cart tab page
+driver.get("https://www1.personal.ebanking.hsbc.com.hk/1/3/cards?__cmd-All_MenuRefresh=")
+
+# click e-Statement hyperlink
+link = driver.find_element_by_xpath("//a[@href='https://www1.personal.ebanking.hsbc.com.hk/1/3/my-hsbc/estatement?cmd-ECorrespDummyPortlet_in=&designateType=Card']")
 link.click()
+
+# find current window handle
+cur_win = driver.window_handles[0]
+
+# find month statement download link
+all_mon_odd_rows = driver.find_elements_by_xpath("//tr[@class=' rowodd']")
+all_mon_eve_rows = driver.find_elements_by_xpath("//tr[@class='zebra']")
+
+for mon_odd_row in all_mon_odd_rows:
+    href_a = mon_odd_row.find_element_by_tag_name('a')
+    print("Month" + href_a.text)
+
+pdf_link = driver.find_element_by_xpath("//a[@id='viewns_7_0G3UNU10SD0MHTI7STB0000000_:list:_idJsp49ns_7_0G3UNU10SD0MHTI7STB0000000_:0:_idJsp56ns_7_0G3UNU10SD0MHTI7STB0000000_']")
+pdf_link.click()
+
+# switch to new open window
+new_win = driver.window_handles[1]
+driver.switch_to.window(new_win)
+
+#print(driver.page_source)
+pdf_file = driver.find_element_by_tag_name("iframe")
+path = pdf_file.get_attribute("src")
+
+#driver.get(path)
+
+headers = {
+"User-Agent":
+    "Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.157 Safari/537.36"
+}
+
+s = requests.session()
+s.headers.update(headers)
+
+cookies = driver.get_cookies()
+for cookie in driver.get_cookies():
+    #c = {cookie['name']: cookie['value']}
+    s.cookies.set(cookie['name'], cookie['value'])
+
+local_filename = "some_folder"
+r = s.get(path)
+open(local_filename, 'wb').write(r.content)
+
+driver.close()
+driver.switch_to.window(cur_win)
