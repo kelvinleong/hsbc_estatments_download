@@ -1,6 +1,8 @@
 This script is a bot to auto login your HSBC account which free you from the tedious two way authentication!
 
-Currently, it supports autologin and I am trying to enhance it to auto download monthly statements for review.
+## New Feature
+
+* Support to auto login and download eStatement from HSBC credit card account.
 
 ## Prerequisite
 
@@ -29,20 +31,22 @@ Specify the location of your chromedriver
   driver = webdriver.Chrome("your_path/chromedriver")
 ```
 
-### New Feature
-
-* Support to auto login and download eStatement from HSBC credit card account.
-
-### Usage
+## Usage
 
 To download all statements from your account:
 
-***Python AutoDownload.py -a***
+```
+  Python AutoDownload.py -a
+```
 
 If you just want to download current monthly statement,
 
-***Python AutoDownload.py -d***
+```
+  Python AutoDownload.py -d
+```
 
 To retrieve a specific monthly statement, you can type (currently, HSBC only stores the latest 24 months' statements for their client):
 
-***Python AutoDownload.py -m Mon-YYYY*** (e.g., ***Python AutoDownload.py -m Jun-2016***)
+```
+Python AutoDownload.py -m Mon-YYYY (e.g., Python AutoDownload.py -m Jun-2016)
+```
