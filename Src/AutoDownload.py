@@ -1,4 +1,4 @@
-import sys, getopt, StatementScraper
+import sys, getopt, Scraper
 from datetime import date
 
 def month_digit_to_string(value):
@@ -41,7 +41,7 @@ def main(argv):
         elif opt == '-a':
             type = 'a'
 
-    StatementScraper.download(type, month_year_str)
+    Scraper.download(type, month_year_str)
 
 if __name__ == "__main__":
     main(sys.argv[1:])

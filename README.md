@@ -7,7 +7,8 @@ This script is a bot to auto login your HSBC account which free you from the ted
 ## Prerequisite
 
 - Python2.7 or above
-- selenium
+- selenium (python library)
+- chrome browser (above v51.0 update-to-date version is recommended)
 - [Chrome Driver](https://sites.google.com/a/chromium.org/chromedriver/downloads)
 
 ## Setup
@@ -29,6 +30,12 @@ Specify the location of your chromedriver
 ```Python
   # Create a new instance of the Firefox driver
   driver = webdriver.Chrome("your_path/chromedriver")
+```
+
+Change the location where you want to save statements
+
+```Python
+  local_filename = "Your_path" + filename + ".pdf"
 ```
 
 ## Usage
