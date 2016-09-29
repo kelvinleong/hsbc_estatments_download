@@ -3,6 +3,8 @@ This script is a bot to auto login your HSBC account which free you from the ted
 ## New Feature
 
 * Support to auto login and download eStatement from HSBC credit card account.
+* Support Saving account and Credit card account statements download
+* Visualize process schedule by threading
 
 ## Prerequisite
 
@@ -57,3 +59,11 @@ To retrieve a specific monthly statement, you can type (currently, HSBC only sto
 ```
 Python AutoDownload.py -m Mon-YYYY (e.g., Python AutoDownload.py -m Jun-2016)
 ```
+
+New:
+
+Set saving account statements issue day & credit card statement issue day
+
+line 63: if _day < 15 and _type == 'd (15 is my credit card statement issue day)
+
+line 159: if _day < 23 and _type == 'd' (23 is my saving account statements issue day)
