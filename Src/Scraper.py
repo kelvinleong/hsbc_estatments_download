@@ -1,11 +1,20 @@
 from selenium import webdriver
+from selenium.webdriver.support.ui import Select
 import requests
-import time
+import sys
+import threading
 
 type = ''
 month_year_str = ''
-done = False
+done = ''
 cur_win = ""
+download_type = ''
+
+def thread(e, t):
+    while not e.isSet():
+        sys.stdout.write(">")
+        sys.stdout.flush()
+        e.wait(t)
 
 def clickDownload(mon_odd_row, driver):
     href_a = mon_odd_row.find_element_by_tag_name('a')
@@ -41,33 +50,47 @@ def clickDownload(mon_odd_row, driver):
         # c = {cookie['name']: cookie['value']}
         s.cookies.set(cookie['name'], cookie['value'])
 
-    local_filename = "/Users/kelvinleung/Downloads/Test/Test_Args/" + filename + ".pdf"
+    local_filename = "some_path/" + download_type + "/" + filename + ".pdf"
     r = s.get(path)
     open(local_filename, 'wb').write(r.content)
 
     driver.close()
     driver.switch_to.window(cur_win)
 
-def download(_type, _month_year):
+def download(_type, _month_year, _day ):
+    # day checking
+    # note you must change the value according to your credit card statement issue day
+    if _day < 15 and _type == 'd':
+        print("Current Monthly credit card statments is not issued.")
+        return
+
     # initialize global type & month_year
+    global done
+    done = False
     global type
     type = _type
     global month_year_str
     month_year_str = _month_year
     print('Type:' + type + ' Month-Year: ' + month_year_str)
 
-    sec_pwd = some_sec_pass_word
+    e = threading.Event()
+    t1 = threading.Thread(name='scheduler',
+                          target=thread,
+                          args=(e, 1))
+    t1.start()
+
+    sec_pwd = ['0', 's', 'e', 'c', 'p', 'w', 'd']
 
     # Create a new instance of the Firefox driver
-    # driver = webdriver.Chrome("path")
-    driver = webdriver.PhantomJS(executable_path=r'your_path/phantomjs')
+    # driver = webdriver.Chrome("/Users/kelvinleung/PycharmProjects/chromedriver")
+    driver = webdriver.PhantomJS(executable_path=r'/path/Downloads/phantomjs-2.1.1-macosx/bin/phantomjs')
 
     # go to the google home page
     driver.get("https://www2.ebanking.hsbc.com.hk/1/2/logon?LANGTAG=en&COUNTRYTAG=US")
 
     # find username input
     usr_name_input = driver.find_element_by_name("u_UserID")
-    usr_name_input.send_keys("some_user_ID")
+    usr_name_input.send_keys("your_user_id)
 
     # submit the form (although google automatically searches now without submitting)
     submit = driver.find_element_by_xpath("//a[@href='javascript:PC_7_0G3UNU10SD0MHTI7TQA0000000000000_validate()']")
@@ -75,7 +98,7 @@ def download(_type, _month_year):
 
     # now we are on the password input page
     firstPassword = driver.find_element_by_name("memorableAnswer")
-    firstPassword.send_keys("first_password")
+    firstPassword.send_keys("some_password")
 
     # find all secondary password input
     all_secondPassword = []
@@ -100,7 +123,7 @@ def download(_type, _month_year):
     # press logon
     logon = driver.find_element_by_xpath("//input[@class='submit_input']")
     logon.click()
-    
+
     # route to Card tab page
     driver.get("https://www1.personal.ebanking.hsbc.com.hk/1/3/cards?__cmd-All_MenuRefresh=")
 
@@ -116,15 +139,73 @@ def download(_type, _month_year):
     all_mon_odd_rows = driver.find_elements_by_xpath("//tr[@class=' rowodd']")
     all_mon_eve_rows = driver.find_elements_by_xpath("//tr[@class='zebra']")
 
+    global download_type
+    download_type = "CrCard"
     for mon_odd_row in all_mon_odd_rows:
-        if(done):
+        if done:
             break
         clickDownload(mon_odd_row, driver)
 
-    if(type != 'd'):
+    if type != 'd':
         for mon_eve_row in all_mon_eve_rows:
-            if (done):
+            if done:
                 break
             clickDownload(mon_eve_row, driver)
 
-    print('Finished!>>>>>>>>>>>>>>>>')
+    e.set()
+    print('\n' + "Credit card e-Statement download finished >>>>>>>")
+
+    # change the day to your saving account statement issue day
+    if _day < 23 and _type == 'd':
+        print("Current monthly saving account estatement is not issued.")
+        return
+
+    e.clear()
+    t2 = threading.Thread(name='scheduler2',
+                          target=thread,
+                          args=(e, 1))
+
+
+    t2.start()
+    # route to bank statement download page
+    done = False
+    all_ext_elements = driver.find_elements_by_xpath("//div[@class='extBgFix']")
+
+    for ext_element in all_ext_elements:
+        link = ext_element.find_element_by_tag_name('a')
+        if "eStatement" in link.text:
+            link.click()
+            break
+
+    # select 5xx account
+    select = Select(driver.find_element_by_xpath("//select[@id='number2']"))
+    select.select_by_value('account_no')
+
+    # click go
+    go_link = driver.find_element_by_xpath("//img[@src='/1/PA_defaultName/images/go.gif']")
+    go_link.click()
+
+    # find current window handle
+    # global cur_win
+    cur_win = driver.window_handles[0]
+
+    # find month statement download link
+    all_mon_odd_rows = driver.find_elements_by_xpath("//tr[@class=' rowodd']")
+    all_mon_eve_rows = driver.find_elements_by_xpath("//tr[@class='zebra']")
+
+    # find month statement download link
+    # global download_type
+    download_type = "SavingAcc"
+    for mon_odd_row in all_mon_odd_rows:
+        if done:
+            break
+        clickDownload(mon_odd_row, driver)
+
+    if type != 'd':
+        for mon_eve_row in all_mon_eve_rows:
+            if done:
+                break
+            clickDownload(mon_eve_row, driver)
+
+    e.set()
+    print('\n' + 'Saving Account e-Statement download finished!>>>>>>>>>>>>>>>>')
