@@ -1,3 +1,4 @@
+import time
 import sys, getopt, Scraper
 from datetime import date
 
@@ -19,16 +20,18 @@ def month_digit_to_string(value):
     return switcher.get(value, "Error")
 
 def main(argv):
+    crdr_type = ''
     type = ''
     month_year_str = ''
+    day = 0
     try:
-        opts, args = getopt.getopt(argv, "hdam:", ["month="])
+        opts, args = getopt.getopt(argv, "hdam:t:", ["month="])
     except getopt.GetoptError:
-        print('AutoDownload -a' + '\n' + 'test.py -m [month]' + '\n')
+        print('test.py -a' + '\n' + 'test.py -m [month]' + '\n')
         sys.exit(2)
     for opt, arg in opts:
         if opt == '-h':
-            print('[Usage]' + '\n' + 'AutoDownload.py -a' )
+            print('[Usage]' + '\n' + 'test.py -a' )
             sys.exit()
         elif opt in ("-m", "--month"):
             type = 'm'
@@ -37,11 +40,15 @@ def main(argv):
             type = 'd'
             month = date.today().month
             year = date.today().year
+            day = int(date.today().day)
             month_year_str = month_digit_to_string(month) + '-' + str(year)
         elif opt == '-a':
             type = 'a'
+        elif opt == '-t':
+            crdr_type = arg
 
-    Scraper.download(type, month_year_str)
+    Scraper.download(type, month_year_str, day, crdr_type)
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])

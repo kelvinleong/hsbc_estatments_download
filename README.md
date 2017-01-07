@@ -2,9 +2,10 @@ This script is a bot to auto login your HSBC account which free you from the ted
 
 ## New Feature
 
-* Support to auto login and download eStatement from HSBC credit card account.
+* Support to auto login and download eStatement from HSBC credit card account
 * Support Saving account and Credit card account statements download
 * Visualize process schedule by threading
+* Support statement type (credit and/or debit card) download configuration
 
 ## Prerequisite
 
@@ -42,28 +43,43 @@ Change the location where you want to save statements
 
 ## Usage
 
-To download all statements from your account:
+To download all statements (both credit and debit card) from your account:
 
 ```
-  Python AutoDownload.py -a
+  Python AutoDownload.py -a -t cd
 ```
 
-If you just want to download current monthly statement,
+If you just want to download current monthly credit card statement,
 
 ```
-  Python AutoDownload.py -d
+  Python AutoDownload.py -d -t c
 ```
 
-To retrieve a specific monthly statement, you can type (currently, HSBC only stores the latest 24 months' statements for their client):
+To retrieve a specific monthly debit card statement, you can type (currently, HSBC only stores the latest 24 months' statements for their client):
 
 ```
-Python AutoDownload.py -m Mon-YYYY (e.g., Python AutoDownload.py -m Jun-2016)
+Python AutoDownload.py -m Mon-YYYY -t d(e.g., Python AutoDownload.py -m Jun-2016)
 ```
 
 New:
 
-Set saving account statements issue day & credit card statement issue day
+-Set saving account statements issue day & credit card statement issue day
+ ```
+ line 63: if _day < 15 and _type == 'd (15 is my credit card statement issue day)
+ line 159: if _day < 23 and _type == 'd' (23 is my saving account statements issue day)
+ ```
+-Download type setting
 
-line 63: if _day < 15 and _type == 'd (15 is my credit card statement issue day)
+```
+ Syntax
+    [-t type]
 
-line 159: if _day < 23 and _type == 'd' (23 is my saving account statements issue day)
+ Flags
+    Item
+          Description
+    -t    type
+          specify download type for credit and/or debit card statement. ("c" for credit card, "d" for debit card)
+          for example,
+          -t cd (download both credit and debit card statement)
+          -t c (only download credit card statement)
+```
