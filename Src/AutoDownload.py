@@ -2,9 +2,10 @@ import time
 import sys, getopt, Scraper
 from datetime import date
 
+
 def month_digit_to_string(value):
     switcher = {
-        1: "Mon",
+        1: "Jan",
         2: "Feb",
         3: "Mar",
         4: "Apr",
@@ -13,42 +14,55 @@ def month_digit_to_string(value):
         7: "Jul",
         8: "Aug",
         9: "Sep",
-       10: "Oct",
-       11: "Nov",
-       12: "Dec"
+        10: "Oct",
+        11: "Nov",
+        12: "Dec"
     }
     return switcher.get(value, "Error")
 
+
+def print_usage():
+    print('[Usage]:' + '\n' + 'python3 DownloadStatement.py -t [c/d/cd] -d -m [mon-yyyy] -s -a' + '\n')
+
+
 def main(argv):
-    crdr_type = ''
-    type = ''
-    month_year_str = ''
-    day = 0
+    current_month = date.today().month
+    current_year = date.today().year
+    current_day = 0
+    month_year_str = '{!s}-{!s}'.format(month_digit_to_string(current_month), str(current_year))
+
+    card_type = 'cd'
+    statement_issued_time = 'd'
+    security_mode = False
+
     try:
-        opts, args = getopt.getopt(argv, "hdam:t:", ["month="])
+        opts, args = getopt.getopt(argv, "hdasm:t:", ["month="])
     except getopt.GetoptError:
-        print('test.py -a' + '\n' + 'test.py -m [month]' + '\n')
+        print_usage()
         sys.exit(2)
+
     for opt, arg in opts:
         if opt == '-h':
-            print('[Usage]' + '\n' + 'test.py -a' )
+            print_usage()
             sys.exit()
-        elif opt in ("-m", "--month"):
-            type = 'm'
+        elif opt == "-m":
+            statement_issued_time = 'm'
             month_year_str = arg
         elif opt == '-d':
-            type = 'd'
-            month = date.today().month
-            year = date.today().year
-            day = int(date.today().day)
-            month_year_str = month_digit_to_string(month) + '-' + str(year)
+            statement_issued_time = 'd'
+            current_day = int(date.today().day)
         elif opt == '-a':
-            type = 'a'
+            statement_issued_time = 'a'
         elif opt == '-t':
-            crdr_type = arg
+            card_type = arg
+        elif opt == '-s':
+            security_mode = True
+        else:
+            print("Invalid arguments!")
+            return;
 
-    Scraper.download(type, month_year_str, day, crdr_type)
-
+    scraper = Scraper.Scraper()
+    scraper.download(statement_issued_time, month_year_str, current_day, card_type, security_mode)
 
 if __name__ == "__main__":
     main(sys.argv[1:])

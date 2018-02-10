@@ -1,3 +1,0 @@
-[master f781557] 1. Support credit card & saving account statements download 2. Visualize process schedule by printing
- 2 files changed, 95 insertions(+), 14 deletions(-)
- create mode 100644 Src/Scraper.pyc

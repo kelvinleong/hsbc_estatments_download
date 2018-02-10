@@ -16,7 +16,7 @@ This script is a bot to auto login your HSBC account which free you from the ted
 
 ## Setup
 
-Replace Username, first password, second password to yours in the "Src/Scrapper".
+Replace Username, first password, second password, saving account number to yours in the "Src/Scrapper".
 
 For example,
 
@@ -26,6 +26,8 @@ For example,
     usr_name_input.send_keys("your_usr_name")
 
     firstPassword.send_keys("your_pass_word")
+
+    select.select_by_value('your_account_number')
 ```
 
 Specify the location of your chromedriver
@@ -65,8 +67,8 @@ New:
 
 -Set saving account statements issue day & credit card statement issue day
  ```
- line 63: if _day < 15 and _type == 'd (15 is my credit card statement issue day)
- line 159: if _day < 23 and _type == 'd' (23 is my saving account statements issue day)
+ line 119: if _day < 15 and _type == 'd (15 is my credit card statement issue day)
+ line 186: if _day < 23 and _type == 'd' (23 is my saving account statements issue day)
  ```
 -Download type setting
 
