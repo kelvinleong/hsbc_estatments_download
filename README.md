@@ -4,72 +4,81 @@ This script is a bot to auto login your HSBC account which free you from the ted
 
 * Support to auto login and download eStatement from HSBC credit card account
 * Support Saving account and Credit card account statements download
-* Visualize process schedule by threading
 * Support statement type (credit and/or debit card) download configuration
 
 ## Prerequisite
 
-- Python2.7 or above
-- selenium (python library)
-- chrome browser (above v51.0 update-to-date version is recommended)
-- [Chrome Driver](https://sites.google.com/a/chromium.org/chromedriver/downloads)
+- Python3.6+
+- selenium (python library) 3.141.0+
+- chrome browser (above v77.0.3865.75+)
+- [Chrome Driver](https://sites.google.com/a/chromium.org/chromedriver/downloads 77.0.3865.40+)
 
 ## Setup
 
-Replace Username, first password, second password, saving account number to yours in the "Src/Scrapper".
+create a config file as per Src/sample_config.ini
 
-For example,
+Using base64 encoded secrets to configure account info
 
-```Python
-    sec_pwd ="some_second_password"
+```ini
+[Account]
+# Bank login info (more secured way to be implemented)
 
-    usr_name_input.send_keys("your_usr_name")
-
-    firstPassword.send_keys("your_pass_word")
-
-    select.select_by_value('your_account_number')
+username = <base64encrypted(username)>
+memorable = <base64encrypted(memorable sentence)>
+secret2 = <base64encrypted(second password)>
+accounts = <account_number1>,<account_number2>,...
 ```
 
-Specify the location of your chromedriver
+Specify the location of your chromedriver in the config file
 
-```Python
-  # Create a new instance of the Firefox driver
-  driver = webdriver.Chrome("your_path/chromedriver")
+```ini
+[Paths.os]
+# paths config for linux
+
+# Driver path
+   driver_path = <path_to>/chromedriver
+   # chrome path can be empty if bin in $PATH
+   chrome_path = <path_to>/chrome
 ```
 
-Change the location where you want to save statements
+Change the location where you want to save statements still in the config file
 
-```Python
-  local_filename = "Your_path" + filename + ".pdf"
+```ini
+[Paths.Linux]
+# paths config for linux
+# File download location
+   FILE_DIR = <path_to>/files
 ```
 
+Set issue dates for credit card and statement
+
+```ini
+[IssueDate]
+credit_card = 12
+statement = 26
+```
 ## Usage
 
 To download all statements (both credit and debit card) from your account:
 
 ```
-  Python AutoDownload.py -a -t cd
+  Python AutoDownload.py -c <config_file> -a -t cd
 ```
 
 If you just want to download current monthly credit card statement,
 
 ```
-  Python AutoDownload.py -d -t c
+  Python AutoDownload.py -c <config_file> -d -t c
 ```
 
 To retrieve a specific monthly debit card statement, you can type (currently, HSBC only stores the latest 24 months' statements for their client):
 
 ```
-Python AutoDownload.py -m Mon-YYYY -t d(e.g., Python AutoDownload.py -m Jun-2016)
+Python AutoDownload.py -c <config_file> -m Mon-YYYY -t d(e.g., Python AutoDownload.py -m Jun-2016)
 ```
 
 New:
 
--Set saving account statements issue day & credit card statement issue day
- ```
- line 119: if _day < 15 and _type == 'd (15 is my credit card statement issue day)
- line 186: if _day < 23 and _type == 'd' (23 is my saving account statements issue day)
- ```
 -Download type setting
 
 ```
