@@ -1,16 +1,26 @@
 from selenium import webdriver
 from selenium.webdriver.support.ui import Select
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.chrome.options import Options
+
 from pathlib import Path
 from time import sleep
-import requests
 import sys
-import threading
+import base64
+from pathlib import Path
+from pages.hsbcpage import *
+from FileWatcher import FileWatcher
+import logging
+import platform
+from datetime import datetime
 
+log = logging.getLogger('AutoDownloads.Scraper')
 
 class Scraper:
-    SEC_PWD_ARR = ['your_second_pass_word_bit_array']
     DEFAULT_CURRENT = 'd'
-    FILE_DIR = '/your_file_folder'
     CREDIT_CARD = 'c'
     SAVING_ACCOUNT = 'd'
 
@@ -21,84 +31,158 @@ class Scraper:
     download_type_dir = ''
     security_mode = False
 
-    @staticmethod
-    def thread(e, t):
-        while not e.isSet():
-            sys.stdout.write(">")
-            sys.stdout.flush()
-            e.wait(t)
 
-    def create_thread(self, thread_name, e):
-        return threading.Thread(name = thread_name,
-                                target = self.thread,
-                                args = (e, 1))
+    class Context:
+        """
+        Context to be transfered from page to page in Page Object Model pattern
+        """
+        def __init__(self, cfg):
+            self.driver = None
+            self.cfg = cfg
 
-    def find_and_download_pdf(self, driver, download_type):
+            sysos = platform.system()
+            self.file_dir = Path(cfg['Paths.' + sysos]['FILE_DIR'])
+            self.chrome_driver_path = Path(cfg['Paths.' + sysos]['driver_path'])
+            self.chrome_path = Path(cfg['Paths.' + sysos]['chrome_path'])
+
+            #TODO find more secure way to manage secrets out of a file
+            self.username = base64.b64decode(cfg['Account']['username'].encode()).decode()
+            self.memorable = base64.b64decode(cfg['Account']['memorable'].encode()).decode()
+            self.secret2 = base64.b64decode(cfg['Account']['secret2'].encode()).decode()
+
+            self.accounts = [acc.strip() for acc in cfg['Account']['accounts'].split(",")]
+
+            self.cc_issue = int(cfg['IssueDate']['credit_card'])
+            self.st_issue = int(cfg['IssueDate']['statement'])
+
+    def __init__(self, cfg):
+        self.context = Scraper.Context(cfg)
+        self.file_watcher = FileWatcher()
+
+    def find_and_download_pdf(self, driver, download_type, account=""):
+        self.done = False
+
         # find month statement download link
-        all_mon_odd_rows = driver.find_elements_by_xpath("//tr[@class=' rowodd']")
-        all_mon_eve_rows = driver.find_elements_by_xpath("//tr[@class='zebra']")
-
-        if download_type == self.SAVING_ACCOUNT:
-            self.download_type_dir = "SavingAcc"
-        elif download_type == self.CREDIT_CARD:
-            self.download_type_dir = 'CrCard'
-
-        for mon_odd_row in all_mon_odd_rows:
-            if self.done:
-                break
-            self.click_download(mon_odd_row, driver)
-            driver.switch_to.window(self.current_window)
-
-        if self.type != self.DEFAULT_CURRENT:
-            for mon_eve_row in all_mon_eve_rows:
-                if self.done:
-                    break
-                self.click_download(mon_eve_row, driver)
-                driver.switch_to.window(self.current_window)
-
-    def click_download(self, mon_odd_row, driver):
-        href_a = mon_odd_row.find_element_by_tag_name('a')
-        filename = href_a.text.replace(' ', '-')
-
-        # m for month, a for all
-        if (self.type == 'm' or self.type == self.DEFAULT_CURRENT) and self.month_year_str in filename:
-            self.done = True
-            href_a.click()
+        page = MyBankingPage.StatementPage(self.context)
+        rows = page.get_rows_buttons()
+        downloaded_files = []
+        if (self.type == 'm' or self.type == self.DEFAULT_CURRENT):
+            date_file = [key for key in rows.keys() if self.month_year_str in key.replace(' ', '-')][0]
+            fdpath = self.click_download(
+                download_type,
+                date_file,
+                rows[date_file],
+                driver,
+                account
+            )
+            if fdpath is None:
+                log.error("failed to download file")
+            else:
+                downloaded_files.append(fdpath)
         elif self.type == 'a':
-            href_a.click()
-        else:
-            return False
+            errors = 0
+            for k, v in rows.items():
+                log.info("download %s statement", k)
+                fdpath = self.click_download(download_type, k, v, driver, account)
+                if fdpath is None:
+                    log.warning("failed to download %s while trying to download all statements, keep trying", k)
+                    errors += 1
+                else:
+                    downloaded_files.append(fdpath)
+            if errors > 0:
+                log.warning("faced %n errors over %n files", errors, len(rows))
+        return downloaded_files
 
+    def click_download(self, download_type, file_date, link, driver, acc):
+        current_win = driver.current_window_handle
+        nbwin = len(driver.window_handles)
+        linkhref = link.get_attribute('href')
+        log.debug("initial url : [%s]", linkhref)
+
+        """
+        First click button and ignore automatic download that cannot be trapped
+        then get updated file link after js processing to load in in new window
+        """
+
+        # blank download loop
+        link.click()
+
+        log.debug("wait for new window to be created")
+        retry = 0
+        times = 1
+        while len(driver.window_handles) == nbwin and retry < 5:
+            sleep(1)
+            if times % 10 == 0:
+                log.warning("no window for 5 sec: retry")
+                link.click()
+                retry += 1
+            times += 1
+        if len(driver.window_handles) == nbwin:
+            log.error("issue to open download link for '%s': '%s'", file_date, link.get_attribute("href"))
         # switch to new open window
-        # sleep(2)
+        log.debug("existing windows handlers after click: [%s]", "-".join([str(h) for h in driver.window_handles]))
         new_win = driver.window_handles[-1]
-        driver.switch_to.window(new_win)
-
-        # print(driver.page_source)
-        # pdf_file = driver.find_element_by_tag_name("iframe")
-        pdf_file = driver.find_element_by_xpath("//form[@name='downloadForm']")
-        path = pdf_file.get_attribute('action')
-
-        headers = {
-            "User-Agent":
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36"
-        }
-        s = requests.session()
-        s.headers.update(headers)
-        cookies = driver.get_cookies()
-        for cookie in cookies:
-            s.cookies.set(cookie['name'], cookie['value'])
-
-        local_filename = "{!s}/{!s}/{!s}.pdf".format(self.FILE_DIR, self.download_type_dir, filename)
-        file = Path(local_filename)
-        if not file.is_file():
-            r = s.get(path)
-            open(local_filename, 'wb').write(r.content)
+        if new_win == current_win:
+            log.warn("switching to same window")
         else:
-            print('\n' + filename + " File already existed")
-
+            log.debug("switching to nw window '%s'", new_win)
+        driver.switch_to.window(new_win)
+        sleep(2)
         driver.close()
+        sleep(1)
+        driver.switch_to.window(current_win)
 
+        # get updated file link and proceed download in new window
+        linkhref = link.get_attribute('href')
+        log.debug("after url : [%s]", linkhref)
+
+        driver.execute_script("window.open()")
+
+        log.debug("wait for new window to be created")
+        retry = 0
+        times = 1
+        while len(driver.window_handles) == nbwin and retry < 5:
+            sleep(1)
+            if times % 10 == 0:
+                log.warning("no window for 5 sec: retry")
+                driver.execute_script("window.open()")
+                retry += 1
+            times += 1
+        if len(driver.window_handles) == nbwin:
+            log.error("issue to open download link for '%s': '%s'", file_date, link.get_attribute("href"))
+        # switch to new open window
+        log.debug("existing windows handlers after click: [%s]", "-".join([str(h) for h in driver.window_handles]))
+        new_win = driver.window_handles[-1]
+        if new_win == current_win:
+            log.warn("switching to same window")
+        else:
+            log.debug("switching to nw window '%s'", new_win)
+        driver.switch_to.window(new_win)
+        sleep(2)
+        self.file_watcher.start()
+        driver.get(linkhref)
+
+        pref = "SAVING_ACC"
+        if download_type == self.SAVING_ACCOUNT:
+            pref = "SAVING_ACC"
+        elif download_type == self.CREDIT_CARD:
+            pref = 'CREDIT_CARD'
+
+        strdate = datetime.strptime(file_date, "%d %b %Y").strftime("%Y%m%d")
+        fname = "{!s}-{!s}-{!s}.pdf".format(pref, acc, strdate)
+        targetfile = self.context.file_dir / fname
+        success = self.file_watcher.wait_move_file(targetfile, 60)
+        if success:
+            log.debug("statement downloaded : %s", str(targetfile))
+        # close current download window
+        driver.close()
+        sleep(1)
+        driver.switch_to.window(current_win)
+        sleep(1)
+        log.debug("download window closed and switched back to statements page")
+        return targetfile if success else None
+
+    """
     def show_adddress_on_statement(self, e, driver):
         e.set()
         check_box = driver.find_element_by_xpath("//input[@type='checkbox']")
@@ -114,127 +198,97 @@ class Scraper:
 
         confirm_button = driver.find_element_by_xpath("//a[@onclick='return checkIfSubmitted(PC_7_81861HO0HG0180AJ125VE110O1000000_submitForm)']")
         confirm_button.click()
+    """
 
     def download(self, statement_issued_time, _month_year, day, card_type, security_mode):
         # day checking
-        if day < 15 and statement_issued_time == self.DEFAULT_CURRENT:
-            print("Current monthly credit & debit card e-statements are not issued.")
+        if day < self.context.cc_issue and statement_issued_time == self.DEFAULT_CURRENT:
+            log.info("Current monthly credit & debit card e-statements are not issued.")
             return
 
         # initialize global type & month_year
-        self.done = False
         self.type = statement_issued_time
         self.month_year_str = _month_year
         self.security_mode = security_mode
-        print('Month-Year: ' + self.month_year_str + '\n')
-
-        e = threading.Event()
-        t1 = self.create_thread('scheduler1', e)
-        t1.start()
+        log.debug('Month-Year: ' + self.month_year_str + '\n')
 
         # Create a new instance of the Chrome driver
-        driver = webdriver.Chrome("/your_driver_folder")
+        chrome_options = Options()
+        if str(self.context.chrome_path) != '.':
+            chrome_options.binary_location = str(self.context.chrome_path)
+        for key, val in self.context.cfg.items('ChromeConfig'):
+            chrome_options.add_argument('--' + key)
+            if key == 'headless':
+                isheadless = True
+
+        chrome_options.add_experimental_option('prefs', {
+                "download": {
+                    "default_directory": str(self.file_watcher.get_dir()),
+                    "prompt_for_download": False,
+                    "directory_upgrade": True,
+                },
+                "download_restrictions": 0
+            }
+        )
+
+        driver = webdriver.Chrome(
+            str(self.context.chrome_driver_path),
+            options=chrome_options
+        )
+
+        driver.implicitly_wait(5)
+        driver.maximize_window()
+        self.context.driver = driver
+        log.info("driver is live, let's start")
 
         # go to HSBC e-banking login page
-        driver.get("https://www.ebanking.hsbc.com.hk/1/2/logon?LANGTAG=en&COUNTRYTAG=US")
-
-        # find username input
-        usr_name_input = driver.find_element_by_name("u_UserID")
-        usr_name_input.send_keys("your_user_name")
-
-        # submit the form
-        submit = driver.find_element_by_xpath("//a[@href='javascript:PC_7_0G3UNU10SD0MHTI7TQA0000000000000_validate()']")
-        submit.click()
+        page = HomePage(self.context)
+        page.visit()
+        page.login(self.context.username)
 
         # now we are on the password input page
-        first_password = driver.find_element_by_name("memorableAnswer")
-        first_password.send_keys("your_pass_word")
+        page = LoginPage(self.context)
+        page.login(self.context.memorable, self.context.secret2)
+        log.debug("Logged in to System !")
 
-        # find all secondary password input
-        all_second_password = driver.find_elements_by_xpath("//input[@type='password']")
-
-        # fill the second password
-        for secondPwd in all_second_password:
-            disable = secondPwd.get_attribute('disabled')
-            memory_ans = secondPwd.get_attribute('aria-required')
-            if disable is None and memory_ans is None:
-                index_str = secondPwd.get_attribute('id')
-                index = int(index_str[len(index_str) - 1])
-                if index < 7:
-                    secondPwd.send_keys(self.SEC_PWD_ARR[index])
-                elif index == 7:
-                    secondPwd.send_keys(self.SEC_PWD_ARR[len(self.SEC_PWD_ARR) - 2])
-                elif index == 8:
-                    secondPwd.send_keys(self.SEC_PWD_ARR[len(self.SEC_PWD_ARR) - 1])
-
-        # press logon
-        logon = driver.find_element_by_xpath("//input[@class='submit_input']")
-        logon.click()
-
-        e.set()
-        print('\n' + "Logged in to System !" + '\n')
-
-        # find eStatement and eAdvice tab on the left panel
-        sleep(5)
-        driver.maximize_window()
-        statements_tab = driver.find_element_by_xpath("//a[contains(@data-url, 'personal.ebanking.hsbc.com.hk/1/2/obadaptor?cmd_in=&uid=banking.dashboard.estatement') and @data-camlevel='30']")
-        statements_tab.click()
+        # goto Statement page
+        page = MyBankingPage(self.context)
+        page.goto_statements()
+        page = page.StatementPage(self.context)
 
         # download debit card account eStatment first
         if 'd' in card_type:
+            log.info("manage account statements")
             # check if debit card estatement is ready by day
-            if day < 23 and statement_issued_time == 'd':
-                print("Current monthly saving account estatement is not issued.")
-                return
+            if day < self.context.st_issue and statement_issued_time == 'd':
+                log.warning("Current monthly saving account estatement is not issued.")
+            else:
+                # select saving accounts
+                for acc in page.get_accounts_list():
+                    log.info("manage account {}...".format(acc))
+                    page.select_account(acc)
+                    # if security_mode:
+                    #    self.show_adddress_on_statement(e, driver)
+                    #    sleep(2)
 
-            e.clear()
-            t2 = self.create_thread('scheduler2', e)
-            t2.start()
+                    sleep(1)
+                    self.find_and_download_pdf(driver, self.SAVING_ACCOUNT, acc)
 
-            if security_mode:
-                self.show_adddress_on_statement(e, driver)
-                sleep(2)
-
-            # select saving account
-            select = Select(driver.find_element_by_xpath("//select[@id='number2']"))
-            select.select_by_value('your_account_number')
-
-            # click go and find eStament download list
-            go_link = driver.find_element_by_xpath("//img[@src='/1/PA_defaultName/images/go.gif']")
-            go_link.click()
-
-            # find current window handle
-            sleep(2)
-            self.current_window = driver.window_handles[0]
-
-            self.find_and_download_pdf(driver, self.SAVING_ACCOUNT)
-
-            e.set()
-            print('\n' + 'Saving Account e-Statement download finished!' + '\n')
 
         # download credit card account eStatment first
         if 'c' in card_type:
-            self.done = False
+            log.info("manage cards statements")
+            # select saving accounts
+            for card in page.get_cards_list():
+                log.info("manage card {}...".format(card))
+                page.select_card(card)
+                # if security_mode:
+                #    self.show_adddress_on_statement(e, driver)
+                #    sleep(2)
 
-            e.clear()
-            t3 = self.create_thread('scheduler3', e)
-            t3.start()
+                sleep(1)
+                self.find_and_download_pdf(driver, self.CREDIT_CARD)
 
-            # find credit card estatment download tab
-            credit_card_tab = driver.find_element_by_xpath("//a[@id='Card']")
-
-            # route to eStatement list tab page
-            credit_card_tab.click()
-
-            if self.security_mode:
-                self.show_adddress_on_statement(e, driver)
-                sleep(5)
-
-            # find current window handle
-            self.current_window = driver.window_handles[0]
-
-            self.find_and_download_pdf(driver, self.CREDIT_CARD)
-            e.set()
-            print('\n' + "Credit card e-Statement download finished !")
-
+        log.info("processing done")
+        # close main window
         driver.close()
