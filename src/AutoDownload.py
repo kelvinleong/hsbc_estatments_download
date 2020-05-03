@@ -90,13 +90,13 @@ def main(argv):
             else:
                 print("Invalid arguments!")
                 logger.error("invalid argument [%s]", opt)
-                return;
+                return
 
         cfg_path = Path(cfgstr)
         if not cfg_path.is_file():
             print("missing config file")
             logger.error("missing config file (%s)", str(cfg_path))
-            return;
+            return
         cfg = configparser.ConfigParser()
         cfg.read(str(cfg_path))
 
@@ -111,6 +111,7 @@ def main(argv):
         logger.exception("!!! FAILED !!!")
         sys.exit(3)
     logger.info("### END ###")
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])
